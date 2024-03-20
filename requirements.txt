@@ -10,6 +10,7 @@ pikepdf
 pillow_heif
 pytesseract
 pypdf
+pillow_heif
 tiktoken
 unstructured
 unstructured_inference
