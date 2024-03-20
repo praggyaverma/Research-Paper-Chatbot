@@ -13,3 +13,7 @@ tiktoken
 unstructured
 unstructured_inference
 unstructured_pytesseract
+altair
+numpy
+pydeck
+streamlit
