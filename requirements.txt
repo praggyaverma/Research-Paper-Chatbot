@@ -1,0 +1,15 @@
+arxiv-downloader
+faiss-cpu
+langchain
+opencv-python
+openai
+pandas
+pdf2image
+pdfminer.six
+pikepdf
+pytesseract
+pypdf
+tiktoken
+unstructured
+unstructured_inference
+unstructured_pytesseract
