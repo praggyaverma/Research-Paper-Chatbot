@@ -1,3 +1,8 @@
+# __import__('pysqlite3')
+# import sys
+# sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+# import sqlite3
+
 import streamlit as st
 import os
 import subprocess
@@ -18,25 +23,25 @@ try:
 except:
     pass
 
+if st.button("New Chat"):
+    shutil.rmtree("pdfs")
+    shutil.rmtree("embeddings")
+    os.mkdir("pdfs")
+    os.mkdir("embeddings")
 st.title("Research Paper Chatbot")
-st.write("Chat with any research paper uploaded in PDF format.")
+st.write("Chat with any research paper from ARXIV")
 api_key = st.text_input("Enter your OpenAI API key", type = "password")
 client = OpenAI(api_key = api_key)
+link = st.text_input("Enter the link to your research paper")
+st.write("example: https://arxiv.org/abs/1706.03762")
 
-uploaded_file = st.file_uploader("Upload a PDF file", type="pdf")
-if uploaded_file is not None:
-    with open("pdfs/uploaded_file.pdf", "wb") as f:
-        f.write(uploaded_file.read())
-    st.success("PDF file uploaded successfully.")
-else:
-    st.warning("Please upload a PDF file.")
-
-pdf = uploaded_file
-
-
-if (api_key == ""):
+if link == "":
     pass
-elif st.button("Research this paper!"):
+else:
+    with st.spinner("Downloading your research paper"):
+        command = ["arxiv-downloader", "--url", f"{link}", "-d", "pdfs"]
+        subprocess.run(command)
+    
     pdf = os.listdir("pdfs")[0]
     pdf = f"pdfs/{pdf}"
     with st.spinner("Embedding document... This may take a while"):
@@ -64,13 +69,13 @@ elif st.button("Research this paper!"):
         You will be given a user query and some text. 
         Analyse the text and answer the user query. 
         If the answer is not present within the text, say that the given question cannot be answered, 
-        dont make up stuff on your own
+        DO NOT make up things on your own.
         """
         user_content = f"""
             Question: {prompt}
             Do not return the question in the response, please. 
             ======
-            Supporting texts:
+            Use the following supporting texts:
             1. {docs[0].page_content}
             2. {docs[1].page_content}
             3. {docs[2].page_content}
