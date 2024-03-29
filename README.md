@@ -1,5 +1,3 @@
-# Research
+# Research Paper Chatbot
 
-## Summary
-
-The research paper summarizer is a tool that automatically generates concise summaries of research papers. It utilizes natural language processing techniques to analyze the content of the paper and extract key information. The summarizer aims to provide users with a quick overview of the paper's main findings, methodology, and conclusions. By using this tool, researchers can save time and effort in reading and understanding lengthy research papers.
+Welcome to the Research Paper Chatbot! Powered by Streamlit, this chatbot is designed to assist you in exploring and discussing research papers. Whether you're looking for specific papers, need help understanding complex concepts, or want to engage in scholarly discussions, our chatbot is here to help. Simply input your queries and let the chatbot guide you through the world of research papers. Happy exploring!
