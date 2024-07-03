@@ -1,103 +1,97 @@
-# __import__('pysqlite3')
-# import sys
-# sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
-# import sqlite3
-
 import streamlit as st
-import os
-import subprocess
-import platform
-import openai
-from openai import OpenAI
-import langchain
-from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.vectorstores import FAISS
-from langchain.text_splitter import TokenTextSplitter
-from langchain.document_loaders import UnstructuredPDFLoader, OnlinePDFLoader
+from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-import shutil 
+import os
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+import google.generativeai as genai
+from langchain.vectorstores import FAISS
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.chains.question_answering import load_qa_chain
+from langchain.prompts import PromptTemplate
+from dotenv import load_dotenv
 
-try:
-    os.mkdir("pdfs")
-    os.mkdir("embeddings")
-except:
-    pass
+load_dotenv()
+os.getenv("GOOGLE_API_KEY")
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-if st.button("New Chat"):
-    shutil.rmtree("pdfs")
-    shutil.rmtree("embeddings")
-    os.mkdir("pdfs")
-    os.mkdir("embeddings")
+# helper functions
+
+def get_pdf_text(pdf_docs): # function to obtain raw text from pdf
+    text=""
+    for pdf in pdf_docs:
+        pdf_reader= PdfReader(pdf)
+        for page in pdf_reader.pages:
+            text+= page.extract_text()
+    return text
+
+def get_text_chunks(text): # function to slipt text into chucks for efficient and faster processing
+    text_split = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
+    chunks = text_split.split_text(text)
+    return chunks
+
+def get_vector_store(text_chunks): # function to get vector store and embedding
+    embeddings = GoogleGenerativeAIEmbeddings(model = "models/embedding-001")
+    vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
+    vector_store.save_local("faiss_index")
+
+def get_conversational_chain():
+
+    prompt_template = """
+    Answer the question as detailed as possible from the provided context, 
+    make sure to provide all the details. 
+    If the answer is not present within the text, 
+    say that the given question cannot be answered, 
+    DO NOT make up things on your own.
+    Do not return the question in the response, please.\n\n
+    Context:\n {context}?\n
+    Question: \n{question}\n
+
+    Answer:
+    """
+
+    model = ChatGoogleGenerativeAI(model="gemini-pro",
+                             temperature=0.3)
+
+    prompt = PromptTemplate(template = prompt_template, input_variables = ["context", "question"])
+    chain = load_qa_chain(model, chain_type="stuff", prompt=prompt)
+
+    return chain
+
+
+
+def user_input(user_question):
+    embeddings = GoogleGenerativeAIEmbeddings(model = "models/embedding-001")
+    
+    new_db = FAISS.load_local("faiss_index", embeddings,allow_dangerous_deserialization=True)
+    docs = new_db.similarity_search(user_question)
+
+    chain = get_conversational_chain()
+
+    
+    response = chain(
+        {"input_documents":docs, "question": user_question}
+        , return_only_outputs=True)
+
+    print(response)
+    st.write("Gemini: ", response["output_text"])
+
+# main code
 st.title("Research Paper Chatbot")
-st.write("Chat with any research paper from ARXIV")
-api_key = st.text_input("Enter your OpenAI API key", type = "password")
-client = OpenAI(api_key = api_key)
-link = st.text_input("Enter the link to your research paper")
-st.write("example: https://arxiv.org/abs/1706.03762")
+st.write("Chat with any research paper pdf")
+st.write("Powered by Gemini 🔹")
 
-if link == "":
-    pass
-else:
-    with st.spinner("Downloading your research paper"):
-        command = ["arxiv-downloader", "--url", f"{link}", "-d", "pdfs"]
-        subprocess.run(command)
-    
-    pdf = os.listdir("pdfs")[0]
-    pdf = f"pdfs/{pdf}"
-    with st.spinner("Embedding document... This may take a while"):
-        loader = UnstructuredPDFLoader(f"{pdf}")
-        data = loader.load()
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
-        texts = text_splitter.split_documents(data)
-        embeddings = OpenAIEmbeddings(openai_api_key = api_key)
-        vectorstore = FAISS.from_texts(texts=[t.page_content for t in texts], embedding=embeddings)
-    
-    if "openai_model" not in st.session_state:
-        st.session_state["openai_model"] = "gpt-3.5-turbo"
 
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+pdf_docs = st.file_uploader("Upload your research paper", accept_multiple_files=True)
+if (pdf_docs):
+    st.write("Click Go!")
+if st.button("Go!"):
+     with st.spinner("Embedding document... This may take a while..."):
+        raw_text = get_pdf_text(pdf_docs)
+        text_chunks = get_text_chunks(raw_text)
+        get_vector_store(text_chunks)
+        st.success("Ready! Let's chat!")
 
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+user_question = st.text_input("Ask a question from the paper")
 
-    if prompt := st.chat_input("Enter your query"):
-        docs = vectorstore.similarity_search(query, 4)
-        system_content = f"""
-        You are a helpful assistant performing Retrieval-augmented generation (RAG).
-        You will be given a user query and some text. 
-        Analyse the text and answer the user query. 
-        If the answer is not present within the text, say that the given question cannot be answered, 
-        DO NOT make up things on your own.
-        """
-        user_content = f"""
-            Question: {prompt}
-            Do not return the question in the response, please. 
-            ======
-            Use the following supporting texts:
-            1. {docs[0].page_content}
-            2. {docs[1].page_content}
-            3. {docs[2].page_content}
-            4. {docs[3].page_content}
-            ======
-            """
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-
-        with st.chat_message("assistant"):
-            message_placeholder = st.empty()
-            full_response = ""
-            for response in client.chat.completions.create(
-                model=st.session_state["openai_model"],
-                
-                messages = [{"role": "system", "content": f"{system_content}"},
-                {"role": "assistant", "content": f"{user_content}"}],
-                
-                stream=True,
-            ):
-                full_response += (response.choices[0].delta.content or "")
-                message_placeholder.markdown(full_response + "▌")
-            message_placeholder.markdown(full_response)
-        st.session_state.messages.append({"role": "assistant", "content": full_response})
+if user_question:
+    user_input(user_question)
