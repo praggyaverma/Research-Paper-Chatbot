@@ -9,10 +9,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
+import secrets
 
-load_dotenv()
-os.getenv("GOOGLE_API_KEY")
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 # helper functions
 
@@ -60,6 +58,10 @@ def get_conversational_chain():
 
 
 def user_input(user_question):
+    if not api_key: 
+        st.error("Please authenticate first by entering your API key.")
+        return
+    
     embeddings = GoogleGenerativeAIEmbeddings(model = "models/embedding-001")
     
     new_db = FAISS.load_local("faiss_index", embeddings,allow_dangerous_deserialization=True)
@@ -77,19 +79,30 @@ def user_input(user_question):
 
 # main code
 st.title("Research Paper Chatbot")
-st.write("Chat with any research paper pdf")
-st.write("Powered by Gemini 🔹")
+st.write("Chat with any research paper pdf, powered by Gemini 🔹")
 
+with st.sidebar:
+    st.title("Gemini API")
+    
+    api_key = st.text_input("Enter your Gemini API key", type="password")
+    if api_key:
+        genai.configure(api_key=api_key)
+    else:
+        if "api_key" in st.secrets:
+            genai.configure(api_key=st.secrets["api_key"])
+        else:
+            st.error("Missing API key.")
 
-pdf_docs = st.file_uploader("Upload your research paper", accept_multiple_files=True)
-if (pdf_docs):
-    st.write("Click Go!")
-if st.button("Go!"):
-     with st.spinner("Embedding document... This may take a while..."):
-        raw_text = get_pdf_text(pdf_docs)
-        text_chunks = get_text_chunks(raw_text)
-        get_vector_store(text_chunks)
-        st.success("Ready! Let's chat!")
+    pdf_docs = st.file_uploader("Upload your research paper", accept_multiple_files=True)
+    if (pdf_docs):
+        st.write("Click Go to start")
+
+    if st.button("Go!"):
+        with st.spinner("Embedding document... This may take a while..."):
+            raw_text = get_pdf_text(pdf_docs)
+            text_chunks = get_text_chunks(raw_text)
+            get_vector_store(text_chunks)
+            st.success("Ready! Let's chat!")
 
 user_question = st.text_input("Ask a question from the paper")
 
