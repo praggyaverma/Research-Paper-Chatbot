@@ -1,5 +1,0 @@
-<<<<<<< HEAD
-.streamlit.secrets.toml
-=======
-.streamlit/secrets.toml
->>>>>>> 138c087 (fixed gitignore issue)
